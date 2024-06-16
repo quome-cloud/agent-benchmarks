@@ -1,3 +1,7 @@
+# Apps that are generated don't get committed.
+generated_apps
+
+
 ### Python template
 # Byte-compiled / optimized / DLL files
 __pycache__/

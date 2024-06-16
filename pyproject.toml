@@ -1,15 +1,16 @@
 [tool.poetry]
-name = "langchain-benchmarks"
-version = "0.0.12"
-description = "🦜💪 Flex those feathers!"
-authors = ["LangChain AI"]
-license = "MIT"
+name = "quome-llm-benchmarks"
+version = "0.0.1"
+description = "⛈️☂️⛈️~ Quome LLM benchmarks"
+authors = ["Quome Inc."]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.8.1"
-langchain = "^0.1.15"
-langsmith = ">=0.0.70"
+python = "^3.9.18"
+langchain = "^0.2.1"
+langsmith = ">=0.1.74"
+langgraph = ">=0.0.64"
+python-dotenv = "^0.19.2"
 tqdm = "^4"
 ipywidgets = "^8"
 tabulate = ">=0.8.0"
