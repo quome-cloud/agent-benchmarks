@@ -72,11 +72,14 @@ def agent(llm, tools):
             SystemMessage(content=PLAN_PROMPT),
             HumanMessage(content=state['task'])
         ]
+        # If you need to get a single promt from a list of message prompts, can use:
+        # prompt = ChatPromptTemplate.from_messages(messages)
+
         response = model.invoke(messages)
         return {"plan": response.content}
 
     def coder_node(state: AgentState):
-        content = "\n\n".join(state['content'] or [])
+        content = "\n\n".join(state['code'] or [])
         user_message = HumanMessage(
             content=f"{state['task']}\n\nHere is my plan:\n\n{state['plan']}")
         messages = [
