@@ -1,13 +1,9 @@
-from . import react, openai_coder_v1
+from os.path import dirname, basename, isfile, join
+import glob
 
-agent_lookup = {
-    "react": react.agent,
-    "openai_coder_v1": openai_coder_v1.agent
-}
+# Dynamically import all modules
+modules = glob.glob(join(dirname(__file__), "*.py"))
 
-all_agents = agent_lookup.keys()
-
-
-def get_agents(agent_names):
-    return [agent_lookup[agent_name] for agent_name in agent_names if agent_name in agent_lookup]
-
+# Enables from <this_module> import *
+# See https://stackoverflow.com/questions/44834/what-does-all-mean-in-python
+__all__ = [basename(f)[:-3] for f in modules if isfile(f) and not f.startswith('_')]

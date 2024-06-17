@@ -1,7 +1,27 @@
-from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain_core.tools import tool
+# Define a tool by writing a function, and annotating with @tool decorator.
+from typing import Type, Optional
 
-API_TEMPLATE = """
+from langchain_community.tools.asknews.tool import SearchInput
+from langchain_community.utilities import GoogleSearchAPIWrapper
+from langchain_core.callbacks import CallbackManagerForToolRun, AsyncCallbackManagerForToolRun
+from langchain_core.tools import tool, BaseTool
+from pydantic.v1 import BaseModel
+
+
+# See https://python.langchain.com/v0.1/docs/modules/tools/custom_tools/
+
+
+@tool
+def add(a, b):
+    """Add two numbers together"""
+    return a + b
+
+
+@tool
+def create_api_template() -> str:
+    """Create a Fast API template"""
+
+    return """
 from typing import List
 from fastapi import APIRouter, Body, Depends, HTTPException, status, Path
 from sqlalchemy.orm import Session
@@ -11,17 +31,12 @@ from services import player_service
 
 api_router = APIRouter()
 
-
-# https://fastapi.tiangolo.com/tutorial/sql-databases/#create-a-dependency
 def get_orm_session():
     orm_session = OrmSession()
     try:
         yield orm_session
     finally:
         orm_session.close()
-
-# POST -------------------------------------------------------------------------
-
 
 @api_router.post(
     "/players/",
@@ -38,9 +53,6 @@ def post(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT)
 
     player_service.create(orm_session, player_model)
-
-# GET --------------------------------------------------------------------------
-
 
 @api_router.get(
     "/players/",
@@ -71,7 +83,6 @@ def get_by_id(
 
     return player
 
-
 @api_router.get(
     "/players/squadnumber/{squad_number}",
     response_model=PlayerModel,
@@ -88,9 +99,6 @@ def get_by_squad_number(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     return player
-
-# PUT --------------------------------------------------------------------------
-
 
 @api_router.put(
     "/players/{player_id}",
@@ -110,9 +118,6 @@ def put(
 
     player_service.update(orm_session, player_model)
 
-# DELETE -----------------------------------------------------------------------
-
-
 @api_router.delete(
     "/players/{player_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -131,39 +136,40 @@ def delete(
 """
 
 
+# Search tools
+# See https://python.langchain.com/v0.2/docs/integrations/tools/google_search/
 @tool
-def create_api_template(query: str) -> str:
-    """Create an api template to start from"""
-    return API_TEMPLATE
+def google_search(query):
+    """
+    Run a Google search for the query
+    """
+    search = GoogleSearchAPIWrapper()
+    return search.run(query)
 
+#  TODO - Vector search / Elasticsearch tool (index documents, enable search)
+# See knowledge/document_loaders.py
 
-def search_fast_api_docs(query):
-    pass
+# class SearchFastApiDocs(BaseTool):
+#     name = "search_fast_api_docs"
+#     description = "useful for when you need to answer questions about current events"
+#     args_schema: Type[BaseModel] = SearchInput
+#
+#     def __init__(self):
+#         fast_api_docs_loader = RecursiveUrlLoader(
+#             "https://fastapi.tiangolo.com/tutorial/"
+#         )
+#         fast_api_docs_loader.load()
+#
+#     def _run(
+#         self, query: str, run_manager: Optional[CallbackManagerForToolRun] = None
+#     ) -> str:
+#         """Use the tool."""
+#         return "LangChain"
+#
+#     async def _arun(
+#         self, query: str, run_manager: Optional[AsyncCallbackManagerForToolRun] = None
+#     ) -> str:
+#         """Use the tool asynchronously."""
+#         raise NotImplementedError("custom_search does not support async")
+#
 
-# Market doesn't exist yet (AI's aren't smart enough yet)
-# 1. Assume AIs get smart enough to build companies.
-# 2. They will need to use services to make company function.
-#  - It will be cost-effective, for them to use services
-
-# BeeKeeper AI
-
-
-# Our world is healthcare apps
-# Our role, will be enabling the market to build useful apps (making people healthier)
-# Private compute marketplace (provide AI services, that do something useful)
-# - Guarantee that the data is private, and the algorithm is private
-# Align incentives (bug bounty -> Pays people to find software bugs)
-# Health problems (Get money from donors, to solve big important problem health)
-# Insurance (Value based care)
-
-
-tool_lookup = {
-    "create_api_template": create_api_template,
-    "search_fast_api_docs": search_fast_api_docs,
-}
-
-valid_tools = tool_lookup.keys()
-
-
-def get_tools(tool_names):
-    return [tool_lookup[name] for name in tool_names if name in tool_lookup]

@@ -62,24 +62,16 @@ class RunningProgram(TypedDict):
     container: Container
     host_port: int
     build_logs: str
+    base_dir: str
 
 
-@contextlib.contextmanager
-def safe_build_and_run_python_code(code: PythonCodeInput, app_prefix="apps") -> RunningProgram:
-    import docker
-    # TODO - May want to hash the input and use as key so we don't create duplicate apps for same code
-
-    client = docker.from_env()
-    lapp_prefix = app_prefix.lower()
-
-    ports_in_use = set(itertools.chain.from_iterable(map(lambda c: (int(v[0]['HostPort']) for v in c.ports.values() if v), client.containers.list())))
-    available_host_port = next(port for port in range(8000, 9000) if port not in ports_in_use)
-
+def write_code_to_dir(code: PythonCodeInput, app_prefix: str, unique_app_id: str) -> str:
     # Write files to temporary directory - Find out how to get base directory of package
-    generated_apps_dir = os.path.join(os.getcwd(), "generated_apps", str(date.today()), lapp_prefix)
-    hours_minutes_seconds = datetime.now().strftime('%H_%M_%S')
-    base_dir = os.path.join(generated_apps_dir, hours_minutes_seconds)
+    generated_apps_dir = os.path.join(os.getcwd(), "generated_apps", str(date.today()), app_prefix)
+    base_dir = os.path.join(generated_apps_dir, unique_app_id)
     Path(base_dir).mkdir(parents=True, exist_ok=True)
+
+    print(f"Creating new code directory {base_dir}")
 
     with open(os.path.join(base_dir, "main.py"), "w") as f:
         f.write(code["main"])
@@ -90,19 +82,47 @@ def safe_build_and_run_python_code(code: PythonCodeInput, app_prefix="apps") -> 
     with open(os.path.join(base_dir, "Dockerfile"), "w") as f:
         f.write(DEFAULT_PYTHON_DOCKERFILE)
 
+    return base_dir
+
+
+@contextlib.contextmanager
+def safe_build_and_run_python_code(code: PythonCodeInput, app_prefix="apps") -> RunningProgram:
+    """Use this function with Python's "with" keyword
+    with safe_build_and_run_python_code(...) as running_app:
+       running_app['port']
+    """
+    lapp_prefix = app_prefix.lower()
+
+    hours_minutes_seconds = datetime.now().strftime('%H_%M_%S')
+    unique_app_id = f"{lapp_prefix}-{hours_minutes_seconds}"
+
+    base_dir = write_code_to_dir(code, lapp_prefix, unique_app_id)
+
+    # Delegated generator...
+    # https://stackoverflow.com/questions/11197186/how-to-yield-results-from-a-nested-generator-function
+    yield from build_and_run_docker_python(base_dir, unique_app_id, run_command=code.get('run_command', None))
+
+
+def build_and_run_docker_python(base_dir, tag, run_command="python main.py"):
+    import docker
+    # TODO - May want to hash the input and use as key so we don't create duplicate apps for same code
+
+    client = docker.from_env()
+    ports_in_use = set(itertools.chain.from_iterable(map(lambda c: (int(v[0]['HostPort']) for v in c.ports.values() if v), client.containers.list())))
+    available_host_port = next(port for port in range(8000, 9000) if port not in ports_in_use)
     # Build docker image.
     # https://docker-py.readthedocs.io/en/stable/images.html#docker.models.images.ImageCollection.build
     # https://docker-py.readthedocs.io/en/stable/images.html#docker.models.images.Image
-    image, _build_logs = client.images.build(path=base_dir, tag=f"{lapp_prefix}-{hours_minutes_seconds}")
+    image, _build_logs = client.images.build(path=base_dir, tag=tag.lower())
 
     # Run the app image in a docker container
     # https://docker-py.readthedocs.io/en/stable/containers.html#docker.models.containers.ContainerCollection.run
     container = client.containers.run(
         image,
-        command=code.get('run_command', None),  # May need to be careful here... Check with Ryan
+        command=run_command,  # May need to be careful here... Check with Ryan
         ports={'8000/tcp': available_host_port},
         detach=True,
-        name=f"{lapp_prefix}-{hours_minutes_seconds}",
+        name=tag.lower(),
     )
 
     # Wait til container starts
@@ -116,10 +136,14 @@ def safe_build_and_run_python_code(code: PythonCodeInput, app_prefix="apps") -> 
         continue
 
     try:
-        running_program = RunningProgram(container=container,
-                                     host_port=available_host_port,
-                                     build_logs=''.join([r.get('stream', '') for r in _build_logs]))
+        running_program = RunningProgram(
+            container=container,
+            host_port=available_host_port,
+            build_logs=''.join([r.get('stream', '') for r in _build_logs]),
+            base_dir=base_dir
+        )
         yield running_program
+
     finally:
         # Cleanup
         container.stop()

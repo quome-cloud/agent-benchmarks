@@ -1,23 +1,15 @@
-
-from typing import TypedDict, List
-
-from langchain_core.messages import SystemMessage, HumanMessage
-
-from langchain_experimental.llms.ollama_functions import OllamaFunctions
 #from ._temp_langchain_overrides.ollama_functions import OllamaFunctions
 
+from typing import List, Optional
+
+from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import Runnable
-from langgraph.graph import StateGraph
-from langgraph.graph import StateGraph, END
-from typing import TypedDict, Annotated, List
-import operator
-from langgraph.checkpoint.sqlite import SqliteSaver
-from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, AIMessage, ChatMessage
 from langchain_openai import ChatOpenAI
-from langchain_community.chat_models import ChatOllama
+from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.graph import StateGraph, END
 
 from quome_agentic_benchmarks.tasks.base import TaskData
-from quome_agentic_benchmarks.tools import get_tools
+from quome_agentic_benchmarks.tools import create_api_template
 from quome_agentic_benchmarks.utils.coding import extract_code_from_llm_output, PythonCodeInput
 
 memory = SqliteSaver.from_conn_string(":memory:")
@@ -78,11 +70,16 @@ from langchain_core.pydantic_v1 import BaseModel
 class Queries(BaseModel):
     queries: List[str]
 
+_SUPPORTED_MODELS = {"gpt-3.5-turbo"}
 
-def agent(llm, tools) -> Runnable:
-    #model = OllamaFunctions(model="llama3")
 
-    model = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+def agent(llm, tools) -> Optional[Runnable]:
+
+    if llm not in _SUPPORTED_MODELS:
+        print(f"{llm} is not supported for openai_coder_v1")
+        return None
+
+    model = ChatOpenAI(model=llm, temperature=0)
     if tools:
         model.bind_tools(tools)
 
@@ -198,12 +195,14 @@ def agent(llm, tools) -> Runnable:
 
     graph = builder.compile(checkpointer=memory)
 
+    graph.name = "openai_coder_v1"
+
     return graph
 
 
 if __name__ == "__main__":
     # Example
-    tools = get_tools(["search_fast_api_docs"])
+    tools = [create_api_template]
     graph = agent(None, tools)
     thread = {"configurable": {"thread_id": "1"}}
     for s in graph.stream({

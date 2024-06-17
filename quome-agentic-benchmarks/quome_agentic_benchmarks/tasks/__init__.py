@@ -1,13 +1,9 @@
-from quome_agentic_benchmarks.tasks.coding import PROMPT_TO_API
+from os.path import dirname, basename, isfile, join
+import glob
 
-task_lookup = {
-    "prompt_to_api": PROMPT_TO_API,
-}
+# Dynamically import all modules
+modules = glob.glob(join(dirname(__file__), "*.py"))
 
-valid_tasks = task_lookup.keys()
-
-
-def get_tasks(task_names):
-    return [task_lookup[name] for name in task_names if name in task_lookup]
-
-
+# Enables from <this_module> import *
+# See https://stackoverflow.com/questions/44834/what-does-all-mean-in-python
+__all__ = [basename(f)[:-3] for f in modules if isfile(f) and not f.startswith('_')]
