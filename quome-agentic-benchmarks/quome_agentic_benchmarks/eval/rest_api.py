@@ -37,6 +37,10 @@ def evaluate_running_app(running_app: RunningProgram, expected: dict):
             # TODO, check create read update and delete methods...
             # 1. Check method / path exists
             # 2. Verify functionality (actually call the methods)
+            # Actually call the POST /tweets endpoint, then the GET /tweets endpoint
+            # JSON schema -> endpoint input -> Fake an input str: "abc" int: 42
+            # Verify that new input was added to list.
+            # Expect the API to have created a tweet
 
     except:
         print("An Error occurred during evaluation")
@@ -48,6 +52,11 @@ def evaluate_running_app(running_app: RunningProgram, expected: dict):
         if has_exception:
             print("There was a runtime error")
             print(app_logs)
+
+
+    # TODO: Evaluate the code quality, this can be done by opening the files in the base_dir
+    # Does it use a database? (Yes = 20 points)
+    # Linters, code security checks, etc.
 
     print(f"Achieved {results['points']} points! {results}")
 

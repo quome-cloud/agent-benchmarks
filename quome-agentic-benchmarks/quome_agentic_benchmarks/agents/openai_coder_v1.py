@@ -1,5 +1,5 @@
 #from ._temp_langchain_overrides.ollama_functions import OllamaFunctions
-
+# https://github.com/langchain-ai/langgraph/blob/main/examples/reflection/reflection.ipynb
 from typing import List, Optional
 
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -33,7 +33,7 @@ class AgentState(TaskData):
     max_revisions: int
 
 
-PLAN_PROMPT = """You are an expert backend coder tasked with creating a working fast API in Python\
+PLAN_PROMPT = """You are an expert backend coder tasked with creating a working fast API in Python. \
 Write a development plan including the endpoints needed to accomplish the user's request. \
 Use restful API conventions, include the HTTP method, \
 the path, and specify each object type and its schema including data types.
@@ -53,8 +53,9 @@ Utilize all the information below as needed:
 {content}"""
 REFLECTION_PROMPT = """You are a senior software engineer with expertise in Python and Fast API. \
 You are conducting code review for junior software engineer. \
-Please provide a list of actionable critiques and recommendations for the MR \
-Check edge cases and check functionality of the code"""
+Please provide a concise list of actionable improvements to the code. \
+Please only list up to 5 items and be concise.
+"""
 
 RESEARCH_PLAN_PROMPT = """You are a technical product manager charged with providing information that can \
 be used by the developer to build the following fast API. Create a list of search queries that would help \
@@ -88,7 +89,11 @@ def agent(llm, tools) -> Optional[Runnable]:
             "task": state['task'],
             # Set initial state for agent
             "max_revisions": 2,
-            "revision_number": 1
+            "revision_number": 1,
+            "draft": '',
+            "plan": '',
+            "critique": '',
+            "content": []
         }
 
     def plan_node(state: AgentState):
@@ -125,6 +130,15 @@ def agent(llm, tools) -> Optional[Runnable]:
             ),
             user_message
         ]
+
+        if state['draft']:
+            previous_draft = HumanMessage(content=f"\n\nPrevious code draft: {state['draft']}")
+            messages.append(previous_draft)
+
+        if state['critique']:
+            critique = HumanMessage(content=f"\n\nMerge request critique: {state['critique']}")
+            messages.append(critique)
+
         response = model.invoke(messages)
         return {
             "draft": response.content,
@@ -194,7 +208,6 @@ def agent(llm, tools) -> Optional[Runnable]:
     builder.add_edge("finalize_code", END)
 
     graph = builder.compile(checkpointer=memory)
-
     graph.name = "openai_coder_v1"
 
     return graph

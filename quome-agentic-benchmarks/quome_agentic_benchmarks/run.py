@@ -37,4 +37,4 @@ def run_benchmark(model_names, tool_names, task_names, agent_names):
 
 
 if __name__ == "__main__":
-    run_benchmark(["llama3", "gpt-3.5-turbo"], ["create_api_template"], ["prompt_to_api"], ["example_agent"])
+    run_benchmark(["llama3", "gpt-3.5-turbo"], ["create_api_template"], ["prompt_to_api"], ["openai_coder_v1", "example_agent"])

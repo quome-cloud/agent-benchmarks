@@ -1,13 +1,10 @@
-prompt_to_api_task_prompt = """Write REST APIs from a given the product requirements given in the user prompt
+prompt_to_api_task_prompt = """Your task is to write functional REST APIs from the given requirements provided by the product manager.
 
-Use the command line and code execution tools to create the Python source code and the Dockerfile
-to create the API.
-
-APIs images will be built and run with the following commands
+APIs images will be built and run with the following commands:
 `docker build -t app`
 `docker run -p 8000:8000 app`
 
-They will then be evaluated on the port 8000, and the Swagger API docs / documentation will be expected at the following URL
+APIs will be evaluated on port 8000, and the Swagger API docs / documentation will be expected at the following URL
 http://localhost:8000/docs
 
 APIs are expected to follow Restful API conventions

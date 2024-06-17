@@ -15,7 +15,12 @@ from pydantic.v1 import BaseModel
 def add(a, b):
     """Add two numbers together"""
     return a + b
-
+#
+# @tool
+# def search_fastapi_docs(query: str):
+#     """Searches fast api documentation"""
+#     return elasticsearch.query(query, "fastapidocs")
+#
 
 @tool
 def create_api_template() -> str:
