@@ -24,7 +24,7 @@ Our internal company library for running LLM benchmarks.
 2. In terminal, run `poetry install`
 3. Create an environment file `.env`
    - Copy `cp .env.example .env`
-   - Then edit the file to add your `OPEN_API_KEY` (Ask Jenia, or Collin for one)
+   - Then edit the file to add your `OPENAI_API_KEY` (Ask Jenia, or Collin for one)
    - `.env` is a hidden file, but should be visible in your code editor
      - On a Mac hidden files can be seen in Finder with `Command + Shift + .`
      - In the terminal hidden files can be seen with `ls -a`
