@@ -37,6 +37,9 @@ Utilize all the information below as needed:
 
 {content}"""
 
+# TODO: Once we get credits, setup custom model evaluation agents via AWS, Google
+# TODO: Running hyperparameter tuning jobs in the cloud
+
 
 class AgentState(TaskData):
     # task: str # Inherited from TaskInput

@@ -42,6 +42,9 @@ def evaluate_running_app(running_app: RunningProgram, expected: dict):
             # Verify that new input was added to list.
             # Expect the API to have created a tweet
 
+            # TODO: Eval with a "Judge" eval model (GPT40)
+            # Look up good Judge prompts...
+
     except:
         print("An Error occurred during evaluation")
         # TODO - Give partial credit?
