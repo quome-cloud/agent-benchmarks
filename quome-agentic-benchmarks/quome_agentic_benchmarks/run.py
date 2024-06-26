@@ -29,7 +29,7 @@ def run_benchmark(model_names, tool_names, task_names, agent_names):
                     # Model not supported for agent
                     continue
 
-                print(f"Evaluating agent {agent_to_test.name} with model {model}")
+                print(f"Evaluating agent {agent_to_test.name} with model {model} on task {task}")
 
                 agent_id = f"{model}-{agent_to_test.name}"
 

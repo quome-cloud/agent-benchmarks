@@ -4,7 +4,9 @@ import itertools
 import json
 import os
 import re
+import uuid
 from asyncio import sleep
+from enum import Enum
 
 import requests
 
@@ -32,15 +34,13 @@ def extract_code_from_llm_output(file_name, llm_output):
     """
 
     llm_output.find(file_name)
-    code_block = re.split(backtick_code_regex, llm_output[llm_output.find(file_name):])[1]
+    code_blocks = re.split(backtick_code_regex, llm_output[llm_output.find(file_name):])
 
-    return code_block
+    if len(code_blocks) < 1:
+        print(f"No code blocks found for {file_name}")
+        return ""
 
-
-class PythonCodeInput(TypedDict):
-    main: str
-    requirements: str
-    run_command: NotRequired[str]
+    return code_blocks[1]
 
 
 DEFAULT_PYTHON_DOCKERFILE = """FROM python:alpine
@@ -48,14 +48,39 @@ WORKDIR /opt/app
 COPY requirements.txt requirements.txt
 COPY main.py main.py
 RUN pip install -r requirements.txt
+COPY . .
 CMD ["python", "main.py"]
 """
 
-README_TEMPLATE = """# {app_name}
-```
-docker bu
-```
+# For hosting basic HTML, Javascript, CSS websites
+DEFAULT_STATIC_HOSTING_DOCKERFILE = """
+FROM busybox:1.35
+
+# Create a non-root user to own the files and run our server
+RUN adduser -D static
+USER static
+WORKDIR /home/static
+
+# Copy the static website
+# Use the .dockerignore file to control what ends up inside the image!
+COPY . .
+
+# Run BusyBox httpd
+CMD ["busybox", "httpd", "-f", "-v", "-p", "3000"]
 """
+
+
+class AllowedDockerFiles(Enum):
+    python = DEFAULT_PYTHON_DOCKERFILE
+    static_web = DEFAULT_STATIC_HOSTING_DOCKERFILE
+
+
+class CodeInput(TypedDict):
+    files: dict[str, str]  # Path -> Content
+    dockerfile: AllowedDockerFiles
+    build_command: NotRequired[str]
+    run_command: NotRequired[str]
+    port: NotRequired[int]
 
 
 class RunningProgram(TypedDict):
@@ -65,30 +90,45 @@ class RunningProgram(TypedDict):
     base_dir: str
 
 
-def write_code_to_dir(code: PythonCodeInput, app_prefix: str, unique_app_id: str) -> str:
-    # Write files to temporary directory - Find out how to get base directory of package
+DISALLOWED_PATHS = {"Dockerfile"}
+
+
+def write_code_to_dir(code: CodeInput, app_prefix: str, unique_app_id: str) -> str:
+    """
+        Writes all files to temporary directory within generated_apps
+        This function is likely a large security risk.
+        Writing Dockerfiles is possible here. Useful, but definitely carries risks.
+    """
     generated_apps_dir = os.path.join(os.getcwd(), "generated_apps", str(date.today()), app_prefix)
     base_dir = os.path.join(generated_apps_dir, unique_app_id)
     Path(base_dir).mkdir(parents=True, exist_ok=True)
 
     print(f"Creating new code directory {base_dir}")
 
-    with open(os.path.join(base_dir, "main.py"), "w") as f:
-        f.write(code["main"])
+    for path, content in code["files"].items():
+        # Careful about relative paths here. Don't want to dig where we shouldn't on local file system.
+        file_path = os.path.join(base_dir, path)
+        if not file_path.startswith(base_dir) or ".." in path:
+            raise ValueError("Relative paths not allowed")
 
-    with open(os.path.join(base_dir, "requirements.txt"), "w") as f:
-        f.write(code["requirements"])
+        if path in DISALLOWED_PATHS:
+            raise ValueError(f"Writing custom {path} is not allowed")
 
-    with open(os.path.join(base_dir, "Dockerfile"), "w") as f:
-        f.write(DEFAULT_PYTHON_DOCKERFILE)
+        # Could try and only expose writing to files through docker...
+        with open(file_path, "w") as f:
+            f.write(content)
+
+    # Write Dockerfile
+    dockerfile_path = os.path.join(base_dir, "Dockerfile")
+    with open(dockerfile_path, "w") as f:
+        f.write(code['dockerfile'].value)
 
     return base_dir
 
 
-@contextlib.contextmanager
-def safe_build_and_run_python_code(code: PythonCodeInput, app_prefix="apps") -> RunningProgram:
+def safe_build_and_run_code(code: CodeInput, app_prefix="apps"):
     """Use this function with Python's "with" keyword
-    with safe_build_and_run_python_code(...) as running_app:
+    with safe_build_and_run_code(...) as running_app:
        running_app['port']
     """
     lapp_prefix = app_prefix.lower()
@@ -100,19 +140,30 @@ def safe_build_and_run_python_code(code: PythonCodeInput, app_prefix="apps") -> 
 
     # Delegated generator...
     # https://stackoverflow.com/questions/11197186/how-to-yield-results-from-a-nested-generator-function
-    yield from build_and_run_docker_python(base_dir, unique_app_id, run_command=code.get('run_command', None))
+    return build_and_run_docker(
+        base_dir,
+        unique_app_id,
+        run_command=code.get('run_command', None),
+        expose_port=code.get('port', 8000)
+    )
 
 
-def build_and_run_docker_python(base_dir, tag, run_command="python main.py"):
+@contextlib.contextmanager
+def build_and_run_docker(base_dir, tag, run_command="python main.py", expose_port=8000):
     import docker
-    # TODO - May want to hash the input and use as key so we don't create duplicate apps for same code
+
+    if tag is None:
+        tag = str(uuid.uuid4())
 
     client = docker.from_env()
+    port_mapping = {}
     ports_in_use = set(itertools.chain.from_iterable(map(lambda c: (int(v[0]['HostPort']) for v in c.ports.values() if v), client.containers.list())))
-    available_host_port = next(port for port in range(8000, 9000) if port not in ports_in_use)
+    available_host_port = next(port for port in range(expose_port, expose_port+100) if port not in ports_in_use)
     # Build docker image.
     # https://docker-py.readthedocs.io/en/stable/images.html#docker.models.images.ImageCollection.build
     # https://docker-py.readthedocs.io/en/stable/images.html#docker.models.images.Image
+    port_mapping[f'{expose_port}/tcp'] = available_host_port
+
     image, _build_logs = client.images.build(path=base_dir, tag=tag.lower())
 
     # Run the app image in a docker container
@@ -120,7 +171,7 @@ def build_and_run_docker_python(base_dir, tag, run_command="python main.py"):
     container = client.containers.run(
         image,
         command=run_command,  # May need to be careful here... Check with Ryan
-        ports={'8000/tcp': available_host_port},
+        ports=port_mapping,
         detach=True,
         name=tag.lower(),
     )
@@ -166,11 +217,14 @@ if __name__ == "__main__":
     doctest.testmod()
 
     # Run API example
-    with safe_build_and_run_python_code({
-        "main": FASTAPI_HELLOWORLD,
-        "requirements": FASTAPI_REQUIREMENTS,
-        "run_command": "fastapi run main.py"
-    }) as running_app:
+    with safe_build_and_run_code(CodeInput(
+        files={
+            "main.py": FASTAPI_HELLOWORLD,
+            "requirements.txt": FASTAPI_REQUIREMENTS
+        },
+        dockerfile=AllowedDockerFiles.python,
+        run_command="fastapi run main.py"
+    )) as running_app:
         print(running_app['host_port'])
         resp = requests.get(f"http://0.0.0.0:{running_app['host_port']}")
         api_docs = json.loads(requests.get(f"http://0.0.0.0:{running_app['host_port']}/openapi.json").text)
@@ -179,15 +233,37 @@ if __name__ == "__main__":
 
 
     # Run output logs only (no running program)
-    with safe_build_and_run_python_code({
-        "main": "import pandas as pd\nimport numpy as np\ns = pd.Series([1, 3, 5, np.nan, 6, 8])\nprint(s)",
-        "requirements": "pandas\nnumpy"
-    }) as program:
+    with safe_build_and_run_code(CodeInput(
+            files={
+                    "main.py": "import pandas as pd\nimport numpy as np\ns = pd.Series([1, 3, 5, np.nan, 6, 8])\nprint(s)",
+                    "requirements.txt": "pandas\nnumpy"
+                },
+            dockerfile=AllowedDockerFiles.python,
+            run_command="python main.py"
+    )) as program:
         print(program['container'])
         print(program['container'].logs())
         print(program['build_logs'])
 
 
-
-
-
+    # Example of static web hosting
+    with safe_build_and_run_code(CodeInput(
+            files={
+                    "index.html": """
+<!doctype html>
+<html>
+  <head>
+    <title>Hello world!</title>
+  </head>
+  <body>
+    <p>This is an example paragraph.</p>
+  </body>
+</html>
+"""
+            },
+            dockerfile=AllowedDockerFiles.static_web,
+            port=3000
+    )) as running_app:
+        print(running_app['host_port'])
+        response = requests.get(f"http://0.0.0.0:{running_app['host_port']}")
+        print(response.content)

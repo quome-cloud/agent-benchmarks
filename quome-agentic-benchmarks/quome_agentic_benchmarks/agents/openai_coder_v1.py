@@ -10,7 +10,8 @@ from langgraph.graph import StateGraph, END
 
 from quome_agentic_benchmarks.tasks.base import TaskData
 from quome_agentic_benchmarks.tools import create_api_template
-from quome_agentic_benchmarks.utils.coding import extract_code_from_llm_output, PythonCodeInput
+from quome_agentic_benchmarks.utils.coding import extract_code_from_llm_output, CodeInput, \
+    AllowedDockerFiles
 
 memory = SqliteSaver.from_conn_string(":memory:")
 
@@ -148,9 +149,13 @@ def agent(llm, tools) -> Optional[Runnable]:
     def finalize_code_node(state: AgentState):
         main_py = extract_code_from_llm_output("main.py", state["draft"])
         requirements_txt = extract_code_from_llm_output("requirements.txt", state["draft"])
-        task_output = PythonCodeInput(
-            main=main_py,
-            requirements=requirements_txt,
+        task_output = CodeInput(
+            files={
+                "main.py": main_py,
+                "requirements.txt": requirements_txt
+            },
+            dockerfile=AllowedDockerFiles.python,
+            run_command="fastapi run main.py"
         )
 
         return {

@@ -14,7 +14,8 @@ from langgraph.graph import StateGraph
 
 from quome_agentic_benchmarks.tasks.base import TaskData
 from quome_agentic_benchmarks.tools import create_api_template
-from quome_agentic_benchmarks.utils.coding import extract_code_from_llm_output, PythonCodeInput
+from quome_agentic_benchmarks.utils.coding import extract_code_from_llm_output, CodeInput, \
+    AllowedDockerFiles
 
 _SUPPORTED_MODELS = {"llama3", "codellama"}
 
@@ -99,9 +100,13 @@ def agent(llm, tools):
     def finalize_code_node(state: AgentState):
         main_py = extract_code_from_llm_output("main.py", state["code"])
         requirements_txt = extract_code_from_llm_output("requirements.txt", state["code"])
-        task_output = PythonCodeInput(
-            main=main_py,
-            requirements=requirements_txt,
+        task_output = CodeInput(
+            files={
+                "main.py": main_py,
+                "requirements.txt": requirements_txt
+            },
+            dockerfile=AllowedDockerFiles.python,
+            run_command="fastapi run main.py"
         )
 
         return {

@@ -12,6 +12,32 @@ APIs are expected to follow Restful API conventions
 Prompt: $prompt
 """
 
+prompt_to_prd_task_prompt = """write a product requirements document for a fastapi web application:
+"$prompt"
+
+Note that this product requirements document should outline:
+- title
+- overview
+- functional requirements
+- non-functional requirements
+- technical requirements
+- acceptance criteria 
+- release criteria
+- assumptions and dependencies
+- risks and assumptions
+- next steps
+- conclusion
+"""
+
+prompt_to_frontend_task_prompt = """
+Given this product requirements document:
+$prd
+
+Get me HTML file names and descriptions that need for the fastapi app as templates.
+
+Respond in JSON with key value pairs with keys being the HTML file name and values being the descriptions of the files
+"""
+
 example_prompt_to_api = """
 
 Example:
