@@ -3,6 +3,8 @@ from typing import List, Tuple, Callable, Any
 
 from tabulate import tabulate
 
+from quome_agentic_benchmarks.utils.benchmark import EvaluationMetadata
+
 
 @dataclasses.dataclass(frozen=True)
 class Dataset:
@@ -17,8 +19,8 @@ class Dataset:
     rows: List[Tuple[Any, Any]]
     """List of training examples. Typically (Prompt,EvaluationData)"""
 
-    # Agent_id, prompt_id, result, expected_result_data
-    evaluate: Callable[[str, str, Any, Any], Any]
+    # EvaluationMetadata, result, expected_result_data
+    evaluate: Callable[[EvaluationMetadata, Any, Any], Any]
     """Evaluates an output against the expected output."""
 
     @property

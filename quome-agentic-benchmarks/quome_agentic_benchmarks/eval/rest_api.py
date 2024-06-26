@@ -4,10 +4,14 @@ import os
 import requests
 import pandas as pd
 
+from quome_agentic_benchmarks.utils.benchmark import EvaluationMetadata
 from quome_agentic_benchmarks.utils.coding import RunningProgram, build_and_run_docker, CodeInput, AllowedDockerFiles, safe_build_and_run_code
 
 
-def evaluate_running_app(running_app: RunningProgram, expected: dict):
+def evaluate_running_app(running_app: RunningProgram, expected: dict, output_dir=None):
+    if not output_dir:
+        output_dir = running_app['base_dir']
+
     results = {'eval': 'prompt-to-api', 'points': 0, 'successful': [], 'failed': []}
 
     base_url = f"http://0.0.0.0:{running_app['host_port']}"
@@ -79,19 +83,16 @@ def evaluate_running_app(running_app: RunningProgram, expected: dict):
 
     print(f"Achieved {results['points']} points! {results}")
 
-    with open(os.path.join(running_app['base_dir'], "evaluation_results.json"), "w") as f:
+    with open(os.path.join(output_dir, "evaluation_results.json"), "w") as f:
         f.write(json.dumps(results))
 
     return results
 
 
-def eval_prompt_to_api(agent_id, prompt_id, code_result: CodeInput, expected):
+def eval_prompt_to_api(evaluation_metadata: EvaluationMetadata, code_result: CodeInput, expected):
     print(f"Result {code_result}")
-
-    app_prefix = f"{agent_id}_{prompt_id}".lower()
-
-    with safe_build_and_run_code(code_result, app_prefix=app_prefix) as running_app:
-        eval_results = evaluate_running_app(running_app, expected)
+    with safe_build_and_run_code(code_result, output_dir=evaluation_metadata.output_dir) as running_app:
+        eval_results = evaluate_running_app(running_app, expected, output_dir=evaluation_metadata.output_dir)
 
     return eval_results
 

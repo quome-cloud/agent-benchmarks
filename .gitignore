@@ -1,5 +1,7 @@
-# Apps that are generated don't get committed.
+# Generated directories for benchmark results, code
 generated_apps
+generated
+benchmark_results
 
 
 ### Python template

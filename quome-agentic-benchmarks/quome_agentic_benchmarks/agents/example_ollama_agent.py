@@ -52,7 +52,7 @@ class AgentState(TaskData):
     code: str
 
 
-def agent(llm, tools):
+def agent(llm, tools, checkpointer=None):
     if llm not in _SUPPORTED_MODELS:
         print(f"{llm} is not supported for openai_coder_v1")
         return None
@@ -90,7 +90,10 @@ def agent(llm, tools):
             SystemMessage(
                 content=CODER_PROMPT.format(content=content)
             ),
-            user_message
+            user_message,
+            HumanMessage("Please include the 'run command' in a code block if needed. For fastapi this would look like\n"
+                         "run command\n"
+                         "```fastapi run main.py```")
         ]
         response = model.invoke(messages)
         return {
@@ -100,13 +103,14 @@ def agent(llm, tools):
     def finalize_code_node(state: AgentState):
         main_py = extract_code_from_llm_output("main.py", state["code"])
         requirements_txt = extract_code_from_llm_output("requirements.txt", state["code"])
+        run_command = extract_code_from_llm_output("run command", state["code"])
         task_output = CodeInput(
             files={
                 "main.py": main_py,
-                "requirements.txt": requirements_txt
+                "requirements.txt": requirements_txt,
             },
             dockerfile=AllowedDockerFiles.python,
-            run_command="fastapi run main.py"
+            run_command=run_command if run_command else "fastapi run main.py"
         )
 
         return {
@@ -126,8 +130,8 @@ def agent(llm, tools):
 
     builder.set_entry_point("input")
 
-    graph = builder.compile()
-    graph.name = "example_agent"
+    graph = builder.compile(checkpointer=checkpointer)
+    graph.name = "example_ollama_agent"
 
     return graph
 

@@ -1,5 +1,6 @@
 import dataclasses
 import string
+from datetime import datetime
 from typing import List, TypedDict
 
 from langchain.agents import AgentExecutor
@@ -9,6 +10,7 @@ from tabulate import tabulate
 
 from quome_agentic_benchmarks.datasets import get_dataset
 from quome_agentic_benchmarks.datasets.base import Dataset
+from quome_agentic_benchmarks.utils.benchmark import get_benchmark_output_dir, EvaluationMetadata
 
 
 class TaskData(TypedDict):
@@ -69,14 +71,33 @@ class BaseTask:
 
 def run_task(agent_id: str, agent_runnable: Runnable, task: BaseTask, tools):
     task_prompt = string.Template(task.task_prompt)
+    task_id = task.name
 
     for task_row, expected in task.dataset.rows:
         prompt = task_row['prompt']
-        prompt_id = task_row['name']
+        task_row_id = task_row['name']
         # executor = AgentExecutor(agent=agent_runnable, tools=tools)
         instruction_prompt = task_prompt.substitute(prompt=prompt)
-        thread_config = {"configurable": {"thread_id": "1"}}  # Thread needed for checkpointing.
-        # Look at other methods (besides invoke) - Stream, Astream
-        resp: TaskData = agent_runnable.invoke({"task": instruction_prompt}, thread_config)
-        task_output = resp['task_output']
-        eval_results = task.dataset.evaluate(agent_id, prompt_id, task_output, expected)
+        thread_config = {"configurable": {"thread_id": "1"}}  # Thread needed for checkpointing
+        # See Runnable methods for other methods - Stream, Astream, astream_log, batch, etc.
+        # TODO - Possible to do batch here. Particularly useful when using model services like Open AI.
+
+        eval_metadata = EvaluationMetadata(
+            agent_id, task_id, task_row_id
+        )
+
+        eval_metadata.start()
+        # Start the task
+        chunks = []
+        for chunk in agent_runnable.stream({"task": instruction_prompt}, thread_config):
+            print(chunk)
+            chunks.append(chunk)  # Careful with model streaming outputs here, could be a lot of chunks...
+        # End the task, get the task_output from final dict
+        eval_metadata.end()
+        task_output = list(chunks[-1].values())[-1]['task_output']
+
+        eval_metadata.log_agent_call_chain(chunks)
+
+        # resp: TaskData = agent_runnable.invoke({"task": instruction_prompt}, thread_config)
+        # task_output = final_output['task_output']
+        eval_results = task.dataset.evaluate(eval_metadata, task_output, expected)

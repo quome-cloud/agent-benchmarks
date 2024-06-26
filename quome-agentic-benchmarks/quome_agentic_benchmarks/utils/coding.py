@@ -6,6 +6,7 @@ import os
 import re
 import uuid
 from asyncio import sleep
+from docker.errors import APIError
 from enum import Enum
 
 import requests
@@ -13,7 +14,7 @@ import requests
 from datetime import date, datetime
 from docker.models.containers import Container
 from pathlib import Path
-from typing import TypedDict, NotRequired
+from typing import TypedDict, NotRequired, Optional
 
 _example_llm_code_output = "requirements.txt\n```fastapi==0.1.2\npandas==1.2.3```Some explanation\nsome_other_file.py\n```abc\nabc\nabc\n```"
 _example_llm_code_output_2 = "main.py\n```python\nprint('hello world')```"
@@ -36,7 +37,7 @@ def extract_code_from_llm_output(file_name, llm_output):
     llm_output.find(file_name)
     code_blocks = re.split(backtick_code_regex, llm_output[llm_output.find(file_name):])
 
-    if len(code_blocks) < 1:
+    if len(code_blocks) < 2:
         print(f"No code blocks found for {file_name}")
         return ""
 
@@ -88,21 +89,23 @@ class RunningProgram(TypedDict):
     host_port: int
     build_logs: str
     base_dir: str
+    runtime_error: Optional[str]
 
 
 DISALLOWED_PATHS = {"Dockerfile"}
 
 
-def write_code_to_dir(code: CodeInput, app_prefix: str, unique_app_id: str) -> str:
+def write_code_to_dir(code: CodeInput, output_dir: Optional[str] = None) -> str:
     """
         Writes all files to temporary directory within generated_apps
         This function is likely a large security risk.
         Writing Dockerfiles is possible here. Useful, but definitely carries risks.
     """
-    generated_apps_dir = os.path.join(os.getcwd(), "generated_apps", str(date.today()), app_prefix)
-    base_dir = os.path.join(generated_apps_dir, unique_app_id)
-    Path(base_dir).mkdir(parents=True, exist_ok=True)
+    if output_dir is None:
+        output_dir = os.path.join(os.getcwd(), "generated", "apps", str(date.today()))
 
+    base_dir = output_dir
+    Path(base_dir).mkdir(parents=True, exist_ok=True)
     print(f"Creating new code directory {base_dir}")
 
     for path, content in code["files"].items():
@@ -126,23 +129,22 @@ def write_code_to_dir(code: CodeInput, app_prefix: str, unique_app_id: str) -> s
     return base_dir
 
 
-def safe_build_and_run_code(code: CodeInput, app_prefix="apps"):
+def safe_build_and_run_code(code: CodeInput, app_id=None, output_dir=None):
     """Use this function with Python's "with" keyword
     with safe_build_and_run_code(...) as running_app:
        running_app['port']
     """
-    lapp_prefix = app_prefix.lower()
+    if app_id is None:
+        app_id = str(uuid.uuid4())  # For docker images.
 
-    hours_minutes_seconds = datetime.now().strftime('%H_%M_%S')
-    unique_app_id = f"{lapp_prefix}-{hours_minutes_seconds}"
-
-    base_dir = write_code_to_dir(code, lapp_prefix, unique_app_id)
+    code_dir = os.path.join(output_dir, 'app')
+    write_code_to_dir(code, output_dir=code_dir)
 
     # Delegated generator...
     # https://stackoverflow.com/questions/11197186/how-to-yield-results-from-a-nested-generator-function
     return build_and_run_docker(
-        base_dir,
-        unique_app_id,
+        code_dir,
+        app_id,
         run_command=code.get('run_command', None),
         expose_port=code.get('port', 8000)
     )
@@ -168,19 +170,24 @@ def build_and_run_docker(base_dir, tag, run_command="python main.py", expose_por
 
     # Run the app image in a docker container
     # https://docker-py.readthedocs.io/en/stable/containers.html#docker.models.containers.ContainerCollection.run
-    container = client.containers.run(
-        image,
-        command=run_command,  # May need to be careful here... Check with Ryan
-        ports=port_mapping,
-        detach=True,
-        name=tag.lower(),
-    )
+    runtime_error = None
+    container = None
+    try:
+        container = client.containers.run(
+            image,
+            command=run_command,  # May need to be careful here... Check with Ryan
+            ports=port_mapping,
+            detach=True,
+            name=tag.lower(),
+        )
+    except APIError as e:
+        runtime_error = e
 
     # Wait til container starts
     wait_seconds = 30
     retry_seconds = 1
     elapsed_time = 0
-    while container.status not in ('running', 'exited') and elapsed_time < wait_seconds:
+    while not runtime_error and container.status not in ('running', 'exited') and elapsed_time < wait_seconds:
         container.reload()
         sleep(retry_seconds)
         elapsed_time += retry_seconds
@@ -191,12 +198,20 @@ def build_and_run_docker(base_dir, tag, run_command="python main.py", expose_por
             container=container,
             host_port=available_host_port,
             build_logs=''.join([r.get('stream', '') for r in _build_logs]),
-            base_dir=base_dir
+            base_dir=base_dir,
+            runtime_error=runtime_error
         )
         yield running_program
 
     finally:
         # Cleanup
+        with open(os.path.join(base_dir, "build.log"), "w") as f:
+            f.write(running_program['build_logs'])
+        with open(os.path.join(base_dir, "application.log"), "w") as f:
+            f.write(container.logs().decode('utf-8'))
+        if runtime_error:
+            with open(os.path.join(base_dir, "error.log"), "w") as f:
+                f.write(str(runtime_error))
         container.stop()
         container.wait()
         container.remove()

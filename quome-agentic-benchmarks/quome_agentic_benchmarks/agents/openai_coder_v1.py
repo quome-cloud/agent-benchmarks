@@ -13,8 +13,6 @@ from quome_agentic_benchmarks.tools import create_api_template
 from quome_agentic_benchmarks.utils.coding import extract_code_from_llm_output, CodeInput, \
     AllowedDockerFiles
 
-memory = SqliteSaver.from_conn_string(":memory:")
-
 # model = ChatOllama(model="llama3")  # Doesn't work with structured output... See OllamaFunctions instead
 # model = OllamaFunctions(model="llama3", format="json", temperature=0)  # Temp 0 = less creative, more deterministic
 
@@ -75,7 +73,7 @@ class Queries(BaseModel):
 _SUPPORTED_MODELS = {"gpt-3.5-turbo"}
 
 
-def agent(llm, tools) -> Optional[Runnable]:
+def agent(llm, tools, checkpointer=None) -> Optional[Runnable]:
 
     if llm not in _SUPPORTED_MODELS:
         print(f"{llm} is not supported for openai_coder_v1")
@@ -212,7 +210,7 @@ def agent(llm, tools) -> Optional[Runnable]:
     builder.add_edge("research_critique", "generate")
     builder.add_edge("finalize_code", END)
 
-    graph = builder.compile(checkpointer=memory)
+    graph = builder.compile(checkpointer=checkpointer)
     graph.name = "openai_coder_v1"
 
     return graph
