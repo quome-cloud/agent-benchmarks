@@ -207,14 +207,18 @@ def build_and_run_docker(base_dir, tag, run_command="python main.py", expose_por
         # Cleanup
         with open(os.path.join(base_dir, "build.log"), "w") as f:
             f.write(running_program['build_logs'])
-        with open(os.path.join(base_dir, "application.log"), "w") as f:
-            f.write(container.logs().decode('utf-8'))
+
         if runtime_error:
             with open(os.path.join(base_dir, "error.log"), "w") as f:
                 f.write(str(runtime_error))
-        container.stop()
-        container.wait()
-        container.remove()
+
+        if container:
+            with open(os.path.join(base_dir, "application.log"), "w") as f:
+                f.write(container.logs().decode('utf-8'))
+            container.stop()
+            container.wait()
+            container.remove()
+
         image.remove(force=True)
 
 

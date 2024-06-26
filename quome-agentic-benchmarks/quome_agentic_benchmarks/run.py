@@ -1,5 +1,6 @@
 # https://langchain-ai.github.io/langchain-benchmarks/notebooks/tool_usage/benchmark_all_tasks.html
 import importlib
+from datetime import datetime
 
 from langchain_community.llms.ollama import Ollama
 from langgraph.checkpoint.sqlite import SqliteSaver
@@ -16,6 +17,8 @@ def run_benchmark(model_names, tool_names, task_names, agent_names):
     tools = load_members(tool_names, 'quome_agentic_benchmarks.tools')
     coding_tasks = load_members(task_names, 'quome_agentic_benchmarks.tasks.coding')
     agents = load_modules(agent_names, 'quome_agentic_benchmarks.agents')
+
+    benchmark_start = datetime.now()
 
     # Used to save checkpoints for each run. May want to make a custom version
     # To log the checkpoints for each run.
@@ -36,7 +39,7 @@ def run_benchmark(model_names, tool_names, task_names, agent_names):
 
                 print(f"Evaluating agent {agent_to_test.name} with model {model} on task {task}")
                 agent_id = f"{model}-{agent_to_test.name}"
-                run_task(agent_id, agent_to_test, task, tools)
+                run_task(agent_id, agent_to_test, task, tools, benchmark_start)
 
 
 if __name__ == "__main__":

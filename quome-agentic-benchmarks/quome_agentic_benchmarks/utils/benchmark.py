@@ -12,6 +12,7 @@ class EvaluationMetadata:
     agent_id: str
     task_id: str
     task_row: str
+    benchmark_start: datetime
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
 
@@ -25,7 +26,7 @@ class EvaluationMetadata:
     def output_dir(self) -> str:
         directory = os.path.join(
             "benchmark_results",
-            str(self.start_time.strftime("%Y%m%d-%H%M%S")),
+            str(self.benchmark_start.strftime("%Y%m%d-%H%M%S")),
             self.task_id,
             self.agent_id,
             self.task_row

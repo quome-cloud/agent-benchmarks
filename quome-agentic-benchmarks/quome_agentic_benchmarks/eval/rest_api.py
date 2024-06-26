@@ -66,13 +66,12 @@ def evaluate_running_app(running_app: RunningProgram, expected: dict, output_dir
     except:
         print("An Error occurred during evaluation")
         # TODO - Give partial credit?
-        app_logs = running_app['container'].logs().decode("utf-8")
-
-        has_exception = 'Error' in app_logs
-
-        if has_exception:
-            print("There was a runtime error")
-            print(app_logs)
+        if running_app['container']:
+            app_logs = running_app['container'].logs().decode("utf-8")
+            has_exception = 'Error' in app_logs
+            if has_exception:
+                print("There was a runtime error")
+                print(app_logs)
 
 
     # TODO: Evaluate the code quality, this can be done by opening the files in the base_dir
@@ -102,7 +101,7 @@ def eval_prompt_to_api_from_dir(dir, expected, run_command="fastapi run main.py"
 
     with build_and_run_docker(dir, tag=tag, run_command=run_command) as running_app:
         base_url = f"http://0.0.0.0:{running_app['host_port']}"
-        evaluate_running_app(running_app, expected)
+        evaluate_running_app(running_app, expected, output_dir=dir)
 
 
 def fake_post_body(content, schemas):

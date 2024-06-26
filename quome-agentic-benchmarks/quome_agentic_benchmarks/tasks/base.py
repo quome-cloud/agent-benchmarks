@@ -69,7 +69,7 @@ class BaseTask:
         return self.__class__.__name__
 
 
-def run_task(agent_id: str, agent_runnable: Runnable, task: BaseTask, tools):
+def run_task(agent_id: str, agent_runnable: Runnable, task: BaseTask, tools, benchmark_start: datetime):
     task_prompt = string.Template(task.task_prompt)
     task_id = task.name
 
@@ -83,7 +83,7 @@ def run_task(agent_id: str, agent_runnable: Runnable, task: BaseTask, tools):
         # TODO - Possible to do batch here. Particularly useful when using model services like Open AI.
 
         eval_metadata = EvaluationMetadata(
-            agent_id, task_id, task_row_id
+            agent_id, task_id, task_row_id, benchmark_start
         )
 
         eval_metadata.start()
