@@ -6,6 +6,9 @@ Our internal company library for running LLM benchmarks.
 *Build an agent that reliably generates working APIs from a short prompt*
 
 # Setup
+
+
+
 ## Pre-requisites
 1. Install Ollama
    - https://ollama.com/download
@@ -18,8 +21,10 @@ Our internal company library for running LLM benchmarks.
 4. Use pipx to install poetry
    - https://python-poetry.org/docs/
 
+## Pip - Make sure you are using Python 3.12
+1. `pip install -r requirements.txt`
 
-## Running the prompt-to-api benchmark
+## Poetry (A bit problematic for some) Running the prompt-to-api benchmark
 1. Change directory to the same directory as this Readme.md 
 2. In terminal, run `poetry install`
 3. Create an environment file `.env`
